@@ -5,6 +5,8 @@ else()
 endif()
 project(GmSSL C)
 
+install(GNUInstallDir)
+
 SET(CMAKE_PROJECT_HOMEPAGE_URL "http://gmssl.org")
 
 set(LIBRARY_OUTPUT_PATH ${PROJECT_BINARY_DIR}/bin)
@@ -580,8 +582,8 @@ set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 SET_TARGET_PROPERTIES(gmssl PROPERTIES VERSION 3.1 SOVERSION 3)
 
 
-install(TARGETS gmssl ARCHIVE DESTINATION lib LIBRARY DESTINATION lib RUNTIME DESTINATION bin)
-install(DIRECTORY ${CMAKE_SOURCE_DIR}/include/gmssl DESTINATION include)
+# install(TARGETS gmssl ARCHIVE DESTINATION lib LIBRARY DESTINATION lib RUNTIME DESTINATION bin)
+# install(DIRECTORY ${CMAKE_SOURCE_DIR}/include/gmssl DESTINATION include)
 
 if(UNIX AND NOT APPLE)
 	message(STATUS "Detected Linux, configuring /etc/ld.so.conf.d/gmssl.conf")
@@ -648,3 +650,32 @@ set(CPACK_PACKAGE_VERSION "3.1.2-Dev")
 set(CPACK_PACKAGE_DESCRIPTION_FILE ${PROJECT_SOURCE_DIR}/README.md)
 set(CPACK_NSIS_MODIFY_PATH ON)
 include(CPack)
+
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/include/gmssl DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+
+# 生成并安装 CMake Config 文件
+include(CMakePackageConfigHelpers)
+configure_package_config_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/gmsslConfig.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/gmsslConfig.cmake"
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/gmssl
+)
+
+install(FILES
+    "${CMAKE_CURRENT_BINARY_DIR}/gmsslConfig.cmake"
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/gmssl
+)
+
+install(EXPORT gmsslTargets
+    FILE gmsslTargets.cmake
+    NAMESPACE gmssl::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/gmssl
+)
+
+install(TARGETS gmssl 
+    EXPORT gmsslTargets
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
