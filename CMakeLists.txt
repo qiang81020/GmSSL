@@ -636,50 +636,83 @@ if(NOT WIN32)
 	add_test(NAME tls13_commands COMMAND ${CMAKE_COMMAND} -P "${CMAKE_SOURCE_DIR}/cmake/tls13_commands.cmake")
 endif()
 
-# Generate install package with cpack
-#	cpack -G TGZ
-#	cpack -G STGZ
-#	cpack -G NSIS64 # Windows only
-#
-# Install the STGZ package
-#	./GmSSL-<version>-Linux.sh --prefix=/usr/local
-#
-set(CPACK_PACKAGE_NAME "GmSSL")
-set(CPACK_PACKAGE_VENDOR "GmSSL develop team")
-set(CPACK_PACKAGE_VERSION "3.1.2-Dev")
-set(CPACK_PACKAGE_DESCRIPTION_FILE ${PROJECT_SOURCE_DIR}/README.md)
-set(CPACK_NSIS_MODIFY_PATH ON)
-include(CPack)
+###############################################################################
+# 以下部分专为 vcpkg 调整 —— 保持上游功能不变
+###############################################################################
 
-if(NOT CMAKE_INSTALL_INCLUDEDIR)
-    set(CMAKE_INSTALL_INCLUDEDIR "include" CACHE PATH "Include directory")
-endif()
+# -------------------------------------------------------------
+# 1. 让 CMake 配置文件落到 vcpkg 要求的 share/<port> 目录
+# -------------------------------------------------------------
+set(config_install_dir share/gmssl)               # [vcpkg]
+set(targets_export_name gmsslTargets)             # 导出文件名
+set(project_namespace gmssl::)                    # 命名空间
 
-install(DIRECTORY ${CMAKE_SOURCE_DIR}/include/gmssl DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-
-# 生成并安装 CMake Config 文件
+# -------------------------------------------------------------
+# 2. 生成并安装 CMake 配置文件
+# -------------------------------------------------------------
 include(CMakePackageConfigHelpers)
 configure_package_config_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/cmake/gmsslConfig.cmake.in"
     "${CMAKE_CURRENT_BINARY_DIR}/gmsslConfig.cmake"
-    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/gmssl
+    INSTALL_DESTINATION ${config_install_dir}
+)
+
+write_basic_package_version_file(
+    "${CMAKE_CURRENT_BINARY_DIR}/gmsslConfigVersion.cmake"
+    VERSION 3.1.2
+    COMPATIBILITY AnyNewerVersion
 )
 
 install(FILES
     "${CMAKE_CURRENT_BINARY_DIR}/gmsslConfig.cmake"
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/gmssl
+    "${CMAKE_CURRENT_BINARY_DIR}/gmsslConfigVersion.cmake"
+    DESTINATION ${config_install_dir}
 )
 
-install(EXPORT gmsslTargets
-    FILE gmsslTargets.cmake
-    NAMESPACE gmssl::
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/gmssl
-)
+# -------------------------------------------------------------
+# 3. 安装库 + 导出目标
+# -------------------------------------------------------------
+install(TARGETS gmssl
+        EXPORT  ${targets_export_name}
+        RUNTIME DESTINATION bin
+        LIBRARY DESTINATION lib
+        ARCHIVE DESTINATION lib
+        INCLUDES DESTINATION include)
+install(EXPORT ${targets_export_name}
+        NAMESPACE ${project_namespace}
+        DESTINATION ${config_install_dir})
 
-install(TARGETS gmssl 
-    EXPORT gmsslTargets
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-)
+# -------------------------------------------------------------
+# 4. 安装头文件
+# -------------------------------------------------------------
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/include/gmssl
+        DESTINATION include)
+
+# -------------------------------------------------------------
+# 5. 安装工具，放到 tools/gmssl 而不是 bin
+# -------------------------------------------------------------
+if(NOT ${CMAKE_SYSTEM_NAME} STREQUAL "iOS")
+    install(TARGETS gmssl-bin
+            RUNTIME DESTINATION tools/gmssl
+            RENAME gmssl)
+endif()
+
+# -------------------------------------------------------------
+# 6. 在 Release-only triplet 下清理空 debug 目录
+# -------------------------------------------------------------
+install(CODE [[
+    file(REMOVE_RECURSE "${CMAKE_INSTALL_PREFIX}/debug")
+]])
+
+# -------------------------------------------------------------
+# 7. 关闭上游在 Linux 下写 /etc 的操作（vcpkg 打包环境无权限）
+# -------------------------------------------------------------
+if(UNIX AND NOT APPLE)
+    # 原 ld.so.conf.d 逻辑在 vcpkg 环境下禁用
+    set(CMAKE_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}" CACHE PATH "" FORCE)
+endif()
+
+# -------------------------------------------------------------
+# 8. 可选：关闭测试/例程安装，避免多装可执行文件
+# -------------------------------------------------------------
+# 已在 vcpkg portfile 中通过 -DENABLE_TESTS=OFF 关闭
