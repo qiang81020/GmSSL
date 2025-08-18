@@ -643,7 +643,7 @@ endif()
 # -------------------------------------------------------------
 # 1. 让 CMake 配置文件落到 vcpkg 要求的 share/<port> 目录
 # -------------------------------------------------------------
-set(config_install_dir share/gmssl)               # [vcpkg]
+# set(config_install_dir share/gmssl)               # [vcpkg]
 set(targets_export_name gmsslTargets)             # 导出文件名
 set(project_namespace gmssl::)                    # 命名空间
 
@@ -678,9 +678,15 @@ install(TARGETS gmssl
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib
         INCLUDES DESTINATION include)
+		
+# install(EXPORT ${targets_export_name}
+#        NAMESPACE ${project_namespace}
+#        DESTINATION ${config_install_dir})
+
 install(EXPORT ${targets_export_name}
         NAMESPACE ${project_namespace}
-        DESTINATION ${config_install_dir})
+		FILE gmsslConfig.cmake
+		DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/gmssl)
 
 # -------------------------------------------------------------
 # 4. 安装头文件
